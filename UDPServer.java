@@ -1,15 +1,18 @@
-
-// UDPServer.java
 import javax.swing.*;
 import java.awt.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class UDPServer {
     private static final int PORT = 12345;
-    private JTextArea textArea;
+    private final JTextArea textArea;
+    private final Set<ClientInfo> clients = new HashSet<>();
+    private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     public UDPServer() {
         JFrame frame = new JFrame("UDP Server");
@@ -26,28 +29,93 @@ public class UDPServer {
     }
 
     private void startServer() {
-        ExecutorService executor = Executors.newFixedThreadPool(10);
-        try (DatagramSocket socket = new DatagramSocket(PORT)) {
-            textArea.append("Server started on port " + PORT + "\n");
-            while (true) {
-                byte[] buffer = new byte[1024];
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet);
-                executor.submit(() -> handlePacket(packet));
+        executor.submit(() -> {
+            try (DatagramSocket socket = new DatagramSocket(PORT)) {
+                textArea.append("Server started on port " + PORT + "\n");
+                while (true) {
+                    byte[] buffer = new byte[1024];
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    executor.submit(() -> handlePacket(socket, packet));
+                }
+            } catch (Exception e) {
+                textArea.append("Error: " + e.getMessage() + "\n");
             }
+        });
+    }
+
+    private void handlePacket(DatagramSocket socket, DatagramPacket packet) {
+        try {
+            String message = new String(packet.getData(), 0, packet.getLength());
+            InetAddress clientAddress = packet.getAddress();
+            int clientPort = packet.getPort();
+
+            ClientInfo clientInfo = new ClientInfo(clientAddress, clientPort);
+            if (clients.add(clientInfo)) {
+                textArea.append("New client connected: " + clientInfo + "\n");
+            }
+
+            textArea.append("Message from " + clientInfo + ": " + message + "\n");
+
+            broadcastMessage(socket, message, clientInfo);
+
         } catch (Exception e) {
-            textArea.append("Error: " + e.getMessage() + "\n");
+            textArea.append("Error handling packet: " + e.getMessage() + "\n");
         }
     }
 
-    private void handlePacket(DatagramPacket packet) {
-        String message = new String(packet.getData(), 0, packet.getLength());
-        String clientAddress = packet.getAddress().getHostAddress() + ":" + packet.getPort();
-        System.out.println("Message from " + clientAddress + ": " + message);
-        textArea.append("Message from " + clientAddress + ": " + message + "\n");
+    private void broadcastMessage(DatagramSocket socket, String message, ClientInfo sender) {
+        byte[] buffer = message.getBytes();
+        for (ClientInfo client : clients) {
+
+            if (!client.equals(sender)) {
+                try {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length, client.getAddress(), client.getPort());
+                    socket.send(packet);
+                } catch (Exception e) {
+                    textArea.append("Error sending to " + client + ": " + e.getMessage() + "\n");
+                }
+            }
+        }
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(UDPServer::new);
+    }
+
+    private static class ClientInfo {
+        private final InetAddress address;
+        private final int port;
+
+        public ClientInfo(InetAddress address, int port) {
+            this.address = address;
+            this.port = port;
+        }
+
+        public InetAddress getAddress() {
+            return address;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ClientInfo that = (ClientInfo) o;
+            return port == that.port && address.equals(that.address);
+        }
+
+        @Override
+        public int hashCode() {
+            return address.hashCode() * 31 + port;
+        }
+
+        @Override
+        public String toString() {
+            return address.getHostAddress() + ":" + port;
+        }
     }
 }
