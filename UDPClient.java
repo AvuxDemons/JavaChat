@@ -36,16 +36,26 @@ public class UDPClient {
         frame.setVisible(true);
 
         username = JOptionPane.showInputDialog("Enter your username:");
+        connectToServer();
         startReceiving();
+    }
+
+    private void connectToServer() {
+        try {
+            socket = new DatagramSocket();
+            InetAddress serverAddress = InetAddress.getByName(SERVER_HOST);
+            byte[] buffer = (username + " has joined the chat.").getBytes();
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, SERVER_PORT);
+            socket.send(packet);
+        } catch (Exception e) {
+            textArea.append("Error connecting to server: " + e.getMessage() + "\n");
+        }
     }
 
     private void sendMessage(ActionEvent event) {
         String message = inputField.getText().trim();
         if (!message.isEmpty()) {
             try {
-                if (socket == null) {
-                    socket = new DatagramSocket();
-                }
                 String fullMessage = username + ": " + message;
                 byte[] buffer = fullMessage.getBytes();
                 InetAddress serverAddress = InetAddress.getByName(SERVER_HOST);
@@ -62,9 +72,6 @@ public class UDPClient {
     private void startReceiving() {
         new Thread(() -> {
             try {
-                if (socket == null) {
-                    socket = new DatagramSocket();
-                }
                 byte[] buffer = new byte[1024];
                 while (running) {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
