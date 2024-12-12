@@ -46,16 +46,23 @@ public class UDPServer {
 
     private void handlePacket(DatagramSocket socket, DatagramPacket packet) {
         try {
-            String message = new String(packet.getData(), 0, packet.getLength());
             InetAddress clientAddress = packet.getAddress();
             int clientPort = packet.getPort();
 
             ClientInfo clientInfo = new ClientInfo(clientAddress, clientPort);
+            String message = new String(packet.getData(), 0, packet.getLength());
+            int colonIndex = message.indexOf(":");
+            if (colonIndex != -1) {
+                String username = message.substring(0, colonIndex);
+                String msg = message.substring(colonIndex + 1).trim();
+                textArea.append(username + ": " + msg + "\n");
+            } else {
+                textArea.append("Message from " + clientInfo + ": " + message + "\n");
+            }
+
             if (clients.add(clientInfo)) {
                 textArea.append("New client connected: " + clientInfo + "\n");
             }
-
-            textArea.append("Message from " + clientInfo + ": " + message + "\n");
 
             broadcastMessage(socket, message, clientInfo);
 
@@ -70,7 +77,8 @@ public class UDPServer {
 
             if (!client.equals(sender)) {
                 try {
-                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length, client.getAddress(), client.getPort());
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length, client.getAddress(),
+                            client.getPort());
                     socket.send(packet);
                 } catch (Exception e) {
                     textArea.append("Error sending to " + client + ": " + e.getMessage() + "\n");
@@ -102,8 +110,10 @@ public class UDPServer {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
             ClientInfo that = (ClientInfo) o;
             return port == that.port && address.equals(that.address);
         }

@@ -12,12 +12,14 @@ public class UDPClient {
     private JTextArea textArea;
     private volatile boolean running = true;
     private DatagramSocket socket;
+    private String username;
 
     public UDPClient() {
         JFrame frame = new JFrame("UDP Client");
         textArea = new JTextArea(20, 40);
         textArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(textArea);
+
         inputField = new JTextField(30);
 
         JButton sendButton = new JButton("Send");
@@ -33,6 +35,7 @@ public class UDPClient {
         frame.pack();
         frame.setVisible(true);
 
+        username = JOptionPane.showInputDialog("Enter your username:");
         startReceiving();
     }
 
@@ -43,11 +46,12 @@ public class UDPClient {
                 if (socket == null) {
                     socket = new DatagramSocket();
                 }
-                byte[] buffer = message.getBytes();
+                String fullMessage = username + ": " + message;
+                byte[] buffer = fullMessage.getBytes();
                 InetAddress serverAddress = InetAddress.getByName(SERVER_HOST);
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, SERVER_PORT);
                 socket.send(packet);
-                textArea.append("Sent: " + message + "\n");
+                textArea.append("You: " + message + "\n");
                 inputField.setText("");
             } catch (Exception e) {
                 textArea.append("Error: " + e.getMessage() + "\n");
@@ -66,7 +70,7 @@ public class UDPClient {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
                     String message = new String(packet.getData(), 0, packet.getLength());
-                    SwingUtilities.invokeLater(() -> textArea.append("Received: " + message + "\n"));
+                    SwingUtilities.invokeLater(() -> textArea.append(message + "\n"));
                 }
             } catch (Exception e) {
                 if (running) {
