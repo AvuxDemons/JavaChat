@@ -10,6 +10,8 @@ public class UDPClient {
     private static final String SERVER_HOST = "localhost";
     private JTextField inputField;
     private JTextArea textArea;
+    private volatile boolean running = true;
+    private DatagramSocket socket;
 
     public UDPClient() {
         JFrame frame = new JFrame("UDP Client");
@@ -30,12 +32,17 @@ public class UDPClient {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
         frame.setVisible(true);
+
+        startReceiving();
     }
 
     private void sendMessage(ActionEvent event) {
         String message = inputField.getText().trim();
         if (!message.isEmpty()) {
-            try (DatagramSocket socket = new DatagramSocket()) {
+            try {
+                if (socket == null) {
+                    socket = new DatagramSocket();
+                }
                 byte[] buffer = message.getBytes();
                 InetAddress serverAddress = InetAddress.getByName(SERVER_HOST);
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverAddress, SERVER_PORT);
@@ -46,6 +53,27 @@ public class UDPClient {
                 textArea.append("Error: " + e.getMessage() + "\n");
             }
         }
+    }
+
+    private void startReceiving() {
+        new Thread(() -> {
+            try {
+                if (socket == null) {
+                    socket = new DatagramSocket();
+                }
+                byte[] buffer = new byte[1024];
+                while (running) {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+                    String message = new String(packet.getData(), 0, packet.getLength());
+                    SwingUtilities.invokeLater(() -> textArea.append("Received: " + message + "\n"));
+                }
+            } catch (Exception e) {
+                if (running) {
+                    SwingUtilities.invokeLater(() -> textArea.append("Error receiving: " + e.getMessage() + "\n"));
+                }
+            }
+        }).start();
     }
 
     public static void main(String[] args) {
